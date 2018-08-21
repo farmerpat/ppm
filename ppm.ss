@@ -1,3 +1,5 @@
+(import (chezscheme))
+
 ;; view the resulting ppm file with imagemagick's display command
 (define (ref-2d-vect v i j)
   (vector-ref (vector-ref v i) j))
