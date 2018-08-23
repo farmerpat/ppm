@@ -1,5 +1,15 @@
 (import (chezscheme))
 
+;; (darken cm i j)
+;; (darken-row cm i)
+;; (darken-col cm j)
+;; (draw-line cm x1 y1 x2 y2 color)
+;; (draw-rect...
+;; (fill-rect...
+;; ...etc
+;; can have (library (ppm color-matrix))
+;; in another file...
+
 ;; view the resulting ppm file with imagemagick's display command
 (define (ref-2d-vect v i j)
   (vector-ref (vector-ref v i) j))
