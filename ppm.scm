@@ -15,8 +15,7 @@
   (vector-ref (vector-ref v i) j))
 
 (define (set-2d-vect! v i j value)
-  (let ((row (vector-ref v i)))
-   (vector-set! row j value)))
+  (vector-set! (vector-ref v i) j value))
 
 (define (inclusively-bound-by? n lower upper)
   (and (>= n lower)
@@ -53,6 +52,8 @@
     (set-2d-vect! cm row col color)
     (error "set-pt-color!" "invalid color" color)))
 
+(define get-color-at ref-2d-vect)
+
 ;; row = i == #(rows #(columns))
 (define (cm-num-rows cm)
   (vector-length cm))
@@ -81,6 +82,64 @@
     (begin
       (set-col-color! cm c0 color)
       (set-col-range-color! cm (add1 c0) cn color))))
+
+(define file-name "foo.ppm")
+(define max-x 400)
+(define max-y 400)
+(define *max-color-component-value* (make-parameter 255))
+
+;; obviously make the following a proc or macro
+;; the following fails...
+;(define color-matrix (make-vector max-y (make-vector max-x (make-color 255 255 255))))
+;; so...
+(define color-matrix (make-vector max-y))
+
+(do ((i 0  (add1 i)))
+  ((= i max-y))
+  (vector-set! color-matrix i (make-vector max-x (make-color 255 255 255))))
+
+;; painter:
+;; a painter is a procedure whose input is:
+;; cm, row, col.
+;; and it computes the "next" row,col.
+;; it sounds like more of a path or a walk
+;; through the cm. a walk would have seed
+;; coordinates, a procuedure for computing
+;; the 'next' coordinates, and way to handle
+;; cases where the next coords are out of bounds.
+;; using walks might be easier if we generated
+;; "instances" of them by passing the the cm
+;; then the instance could be used like
+;; (set! current-pair (my-walk current-pair))
+;; and the walk would return #f when there
+;; are no more points.
+;; these walks then are strictly building
+;; blocks in the sense that they
+;; must be combined with procedures
+;; that perform some operation on the
+;; points encountered along the path being
+;; traversed.
+;; we could differentiate between procedures
+;; that use walks that are destrcutive and
+;; those that are not.
+;; in other words, a walk can be thought
+;; of as a way to grab a set of points
+;; or as a way to set the values of a set
+;; of points, or whatever.  In a sense,
+;; the walk represents an iterator-esque
+;; interface to a set of points.
+;; this can't backtrace once it goes out of bounds
+;; e.g. it just returns #f when it steps OOB
+;; could add back-tracing (recoverable?) transformers later
+
+;; sort of extending that idea one step further,
+;; we could use a similar abstraction for functions
+;; that transform points with respect to other points.
+;; for instance, every third point, we actually want
+;; to do something to the point +1,+2 away from the
+;; current point. or maybe that doesn't make sense,
+;; and the transformer should have just picked
+;; the right point in the first place.
 
 ;; masks:
 ;; can generate a mask (a 2d-vecotr of 1s and 0s
@@ -113,6 +172,49 @@
 ;; file with serialized data. this
 ;; is starting to feel more like M$-PAINT meets GIMP
 ;; e.g. a scriptable m$-paint.
+(define (make-point-transformer cm row-transformer col-transformer)
+  (lambda (pt)
+    (let* ((row (car pt))
+           (col (cdr pt))
+           (new-row (row-transformer row))
+           (new-col (col-transformer col))
+           (max-row (cm-num-rows cm))
+           (max-col (cm-num-cols cm)))
+      (if (or (>= new-row max-row) (>= new-col max-col))
+        #f
+        (cons new-row new-col)))))
+
+(define (make-walk point-transformer row-0 col-0)
+  (let ((current-row row-0)
+        (current-col col-0))
+    (lambda ()
+      (let ((new-point (point-transformer (cons current-row current-col))))
+        (when new-point
+          (set! current-row (car new-point))
+          (set! current-col (cdr new-point)))
+        new-point))))
+
+(define (take-walk walk cm proc)
+  (let ((next-point (walk)))
+    (when next-point
+      (proc cm next-point)
+      (take-walk walk cm proc))))
+
+(define (do-work)
+  (take-walk
+    (make-walk
+      (make-point-transformer
+        color-matrix
+        (lambda (r) (+ 1 r))
+        (lambda (c) (+ 1 c)))
+      0
+      0)
+    ;; does having to pass in color-matrix twice to the expr make sense?
+    color-matrix
+    (lambda (cm pt)
+      (let ((row (car pt))
+            (col (cdr pt)))
+      (set-pt-color! cm row col (make-color 155 0 155))))))
 
 (define (write-header-to-ppm-port out-port max-x max-y)
   (put-string out-port "P3\n")
@@ -149,13 +251,8 @@
     (put-string out-port "\n")
     (close-output-port out-port)))
 
-(define file-name "foo.ppm")
-(define max-x 100)
-(define max-y 100)
-(define *max-color-component-value* (make-parameter 255))
-(define color-matrix (make-vector max-y (make-vector max-x (make-color 30 65 9))))
-
 (set-row-color! color-matrix 5 (make-color 100 220 60))
 (set-col-range-color! color-matrix 10 70 (make-color 80 220 150))
+(do-work)
 
 (color-matrix->ppm color-matrix file-name)
