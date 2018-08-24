@@ -201,20 +201,25 @@
       (take-walk walk cm proc))))
 
 (define (do-work)
-  (take-walk
-    (make-walk
-      (make-point-transformer
-        color-matrix
-        (lambda (r) (+ 1 r))
-        (lambda (c) (+ 1 c)))
-      0
-      0)
-    ;; does having to pass in color-matrix twice to the expr make sense?
-    color-matrix
-    (lambda (cm pt)
-      (let ((row (car pt))
-            (col (cdr pt)))
-      (set-pt-color! cm row col (make-color 155 0 155))))))
+  ;; x/y transformers (here, add1) could be a single function that accepts a pair as an arg.
+  (let ((transformer (make-point-transformer color-matrix add1 add1)))
+    (take-walk
+      (make-walk transformer 0 0)
+      color-matrix
+      (lambda (cm pt)
+        (set-pt-color! cm (car pt) (cdr pt) (make-color 155 0 155))))
+
+    (take-walk
+      (make-walk transformer 0 4)
+      color-matrix
+      (lambda (cm pt)
+        (set-pt-color! cm (car pt) (cdr pt) (make-color 0 155 155))))
+
+    (take-walk
+      (make-walk transformer 4 0)
+      color-matrix
+      (lambda (cm pt)
+        (set-pt-color! cm (car pt) (cdr pt) (make-color 0 155 155))))))
 
 (define (write-header-to-ppm-port out-port max-x max-y)
   (put-string out-port "P3\n")
